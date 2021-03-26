@@ -105,6 +105,7 @@ def _get_optim_config(args):
         'lr_decay',
         'lr_min',
         'betas',
+        'SD'
     ]
     json_keys = ['milestones', 'betas']
     config = _args2config(args, keys, json_keys)
@@ -148,6 +149,7 @@ def _get_run_config(args):
         'tensorboard_train_images',
         'tensorboard_test_images',
         'tensorboard_model_params',
+        'load_eval'
     ]
     config = _args2config(args, keys, None)
 

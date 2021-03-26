@@ -9,6 +9,8 @@ import argparse
 import numpy as np
 import random
 
+import torchattacks
+
 import torch
 import torch.nn as nn
 import torch.optim
@@ -130,6 +132,8 @@ def parse_args():
     # mixup configuration
     parser.add_argument('--use_mixup', action='store_true', default=False)
     parser.add_argument('--mixup_alpha', type=float, default=1)
+    parser.add_argument('--SD', type=float, default=0.0)
+    parser.add_argument('--load_eval', type=str, default='')
 
     args = parser.parse_args()
     if not is_tensorboard_available:
@@ -188,6 +192,11 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
 
         outputs = model(data)
         loss = criterion(outputs, targets)
+
+        # SD
+        if optim_config['SD'] != 0.0:
+            loss += (outputs ** 2).mean() * optim_config['SD']
+
         loss.backward()
 
         optimizer.step()
@@ -231,7 +240,7 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
         writer.add_scalar('Train/Time', elapsed, epoch)
 
 
-def test(epoch, model, criterion, test_loader, run_config, writer):
+def test(epoch, model, criterion, test_loader, run_config, writer, adv=False):
     logger.info('Test {}'.format(epoch))
 
     model.eval()
@@ -249,6 +258,16 @@ def test(epoch, model, criterion, test_loader, run_config, writer):
         if run_config['use_gpu']:
             data = data.cuda()
             targets = targets.cuda()
+
+        if adv:
+            # all for the attack
+            mean = torch.FloatTensor(np.array([0.4914, 0.4822, 0.4465])[None, :, None, None]).cuda()
+            std = torch.FloatTensor(np.array([0.2470, 0.2435, 0.2616])[None, :, None, None]).cuda()
+            data = data.mul_(std).add_(mean)
+            atk = torchattacks.PGD(model, eps=4/255, alpha=2/255, steps=4)
+            data = atk(data, targets)
+            data = data.sub_(mean).div_(std)
+            # end of attack
 
         with torch.no_grad():
             outputs = model(data)
@@ -329,7 +348,8 @@ def main():
         json.dump(config, fout, indent=2)
 
     # load data loaders
-    train_loader, test_loader = get_loader(config['data_config'])
+    train_loader, test_loader, test_loader_ood = get_loader(config['data_config'])
+    # train_loader, _, test_loader = get_loader(config['data_config'])
 
     # load model
     logger.info('Loading model...')
@@ -364,20 +384,34 @@ def main():
         'best_accuracy': 0,
         'best_epoch': 0,
     }
-    for epoch in range(1, optim_config['epochs'] + 1):
-        # train
-        train(epoch, model, optimizer, scheduler, train_criterion,
-              train_loader, config, writer)
 
-        # test
+    if not run_config['load_eval']:
+
+        for epoch in range(1, optim_config['epochs'] + 1):
+            # train
+            train(epoch, model, optimizer, scheduler, train_criterion,
+                  train_loader, config, writer)
+
+            # test
+            accuracy = test(epoch, model, test_criterion, test_loader, run_config,
+                            writer)
+
+            # update state dictionary
+            state = update_state(state, epoch, accuracy, model, optimizer)
+
+            # save model
+            save_checkpoint(state, outdir)
+
+    else:
+        # /home/pezeshki/scratch/icml_rebuttal/generalization/results/base/00/model_best_state.pth
+        print('Evaulating only ...')
+        state = torch.load(run_config['load_eval'])
+        print('test_iid_acc: ' + str(state['accuracy']))
+        model.load_state_dict(state['state_dict'])
+        epoch = optim_config['epochs'] + 1
         accuracy = test(epoch, model, test_criterion, test_loader, run_config,
-                        writer)
-
-        # update state dictionary
-        state = update_state(state, epoch, accuracy, model, optimizer)
-
-        # save model
-        save_checkpoint(state, outdir)
+                        writer, adv=True)
+        print('test_ood_acc: ' + str(accuracy))
 
     if run_config['tensorboard']:
         outpath = os.path.join(outdir, 'all_scalars.json')
