@@ -149,7 +149,8 @@ def _get_run_config(args):
         'tensorboard_train_images',
         'tensorboard_test_images',
         'tensorboard_model_params',
-        'load_eval'
+        'load_eval',
+        'AT'
     ]
     config = _args2config(args, keys, None)
 

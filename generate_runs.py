@@ -12,7 +12,7 @@ for seed in seeds:
         run_file.write('~/miniconda/bin/python -u main.py --arch vgg --seed ' + str(seed) +
                        ' --outdir results/' + name + '/00 --SD ' + str(SD))
         run_file.write('\n~/miniconda/bin/python -u main.py --arch vgg --seed ' + str(seed) +
-                       ' --outdir results/test/00 --SD ' + str(SD) + ' load_eval '
+                       ' --outdir results/test/00 --SD ' + str(SD) + ' --load_eval '
                        '/home/pezeshki/scratch/icml_rebuttal/generalization/results/' + name + '/00/model_state.pth')
         run_file.flush()
 
@@ -44,7 +44,7 @@ run_all.flush()
 #         run_file.write('~/miniconda/bin/python -u main.py --dataset CIFAR100 --arch resnet_preact --seed ' + str(seed) +
 #                        ' --outdir results/' + name + '/00 --SD ' + str(SD))
 #         run_file.write('\n~/miniconda/bin/python -u main.py --dataset CIFAR100 --arch resnet_preact --seed ' + str(seed) +
-#                        ' --outdir results/test/00 --SD ' + str(SD) + ' load_eval '
+#                        ' --outdir results/test/00 --SD ' + str(SD) + ' --load_eval '
 #                        '/home/pezeshki/scratch/icml_rebuttal/generalization/results/' + name + '/00/model_state.pth')
 #         run_file.flush()
 

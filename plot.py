@@ -52,16 +52,23 @@ experiments = {
 
 
 for name in experiments.keys():
-    accs = []
+    test_accs = []
+    train_accs = []
     for path in experiments[name]:
         f = open(folder + path + '.out', "r")
         for line in f.readlines():
             if 'Epoch 160 Loss ' in line:
-                accs += [float(line.split()[-1])]
-    print('n_runs: ' + str(len(accs)))
-    print(name)
-    print(np.mean(accs) * 100)
-    print(np.std(accs) * 100)
+                test_accs += [float(line.split()[-1])]
+            if 'Epoch 160 Step 300/390' in line:
+                # import pdb; pdb.set_trace()
+                train_accs += [float(line.split()[-1][1:-1])]
+    print('n_runs: ' + str(len(test_accs)))
+    print(name + ' test:')
+    print(np.mean(test_accs) * 100)
+    print(np.std(test_accs) * 100)
+    print(name + ' train:')
+    print(np.mean(train_accs) * 100)
+    print(np.std(train_accs) * 100)
     print('')
 
 # plt.figure(figsize=(10, 5))
