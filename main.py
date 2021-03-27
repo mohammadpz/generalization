@@ -134,6 +134,7 @@ def parse_args():
     parser.add_argument('--mixup_alpha', type=float, default=1)
     parser.add_argument('--SD', type=float, default=0.0)
     parser.add_argument('--load_eval', type=str, default='')
+    parser.add_argument('--AT', action='store_true', default=False)
 
     args = parser.parse_args()
     if not is_tensorboard_available:
@@ -145,7 +146,7 @@ def parse_args():
 
 
 def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
-          writer):
+          writer, AT):
     global global_step
 
     run_config = config['run_config']
@@ -189,6 +190,16 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
             targets = targets.cuda()
 
         optimizer.zero_grad()
+
+        if AT:
+            # all for the attack
+            mean = torch.FloatTensor(np.array([0.4914, 0.4822, 0.4465])[None, :, None, None]).cuda()
+            std = torch.FloatTensor(np.array([0.2470, 0.2435, 0.2616])[None, :, None, None]).cuda()
+            data = data.mul_(std).add_(mean)
+            atk = torchattacks.PGD(model, eps=5/255, alpha=0.5/255, steps=10)
+            data = atk(data, targets)
+            data = data.sub_(mean).div_(std)
+            # end of attack
 
         outputs = model(data)
         loss = criterion(outputs, targets)
@@ -264,7 +275,8 @@ def test(epoch, model, criterion, test_loader, run_config, writer, adv=False):
             mean = torch.FloatTensor(np.array([0.4914, 0.4822, 0.4465])[None, :, None, None]).cuda()
             std = torch.FloatTensor(np.array([0.2470, 0.2435, 0.2616])[None, :, None, None]).cuda()
             data = data.mul_(std).add_(mean)
-            atk = torchattacks.PGD(model, eps=4/255, alpha=2/255, steps=4)
+            atk = torchattacks.PGD(model, eps=5/255, alpha=0.5/255, steps=10)  # for Cifar 10 with SD= 0.0 vs 0.01  -->  30 vs 67
+            # atk = torchattacks.PGD(model, eps=5/255, alpha=0.5/255, steps=10)  # for Cifar 100 with SD= 0.0 vs 0.05  -->  14 vs 25
             data = atk(data, targets)
             data = data.sub_(mean).div_(std)
             # end of attack
@@ -320,7 +332,7 @@ def update_state(state, epoch, accuracy, model, optimizer):
 def main():
     # parse command line argument and generate config dictionary
     config = parse_args()
-    logger.info(json.dumps(config, indent=2))
+    # logger.info(json.dumps(config, indent=2))
 
     run_config = config['run_config']
     optim_config = config['optim_config']
@@ -390,7 +402,7 @@ def main():
         for epoch in range(1, optim_config['epochs'] + 1):
             # train
             train(epoch, model, optimizer, scheduler, train_criterion,
-                  train_loader, config, writer)
+                  train_loader, config, writer, run_config['AT'])
 
             # test
             accuracy = test(epoch, model, test_criterion, test_loader, run_config,
